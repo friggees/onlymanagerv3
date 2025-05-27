@@ -1,0 +1,141 @@
+body {
+    font-family: sans-serif;
+    margin: 20px;
+    background-color: #f4f4f4;
+    color: #333;
+}
+
+.container {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+h1, h2 {
+    color: #333;
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+h2 {
+    margin-top: 20px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 5px;
+}
+
+input[type="email"],
+input[type="password"],
+input[type="text"],
+input[type="number"],
+select {
+    width: calc(100% - 22px);
+    padding: 10px;
+    margin-bottom: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+button {
+    background-color: #007bff;
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    margin-right: 5px;
+    margin-bottom: 5px;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+#auth-status {
+    margin-top: 10px;
+    font-weight: bold;
+}
+
+ul {
+    list-style-type: none;
+    padding: 0;
+}
+
+ul li a {
+    display: block;
+    padding: 8px;
+    margin-bottom: 5px;
+    background-color: #e9ecef;
+    color: #007bff;
+    text-decoration: none;
+    border-radius: 4px;
+}
+
+ul li a:hover {
+    background-color: #dee2e6;
+}
+
+.test-section {
+    margin-bottom: 20px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: #f9f9f9;
+}
+
+.test-section h3 {
+    margin-top: 0;
+}
+
+.results-container .result {
+    margin-top: 10px;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #fff;
+}
+
+.results-container .result h3 {
+    margin-top: 0;
+    font-size: 1.1em;
+    color: #555;
+}
+
+.results-container .result p.error {
+    color: red;
+    font-weight: bold;
+}
+
+.results-container .result p.success {
+    color: green;
+    font-weight: bold;
+}
+
+.results-container .result pre {
+    background-color: #eee;
+    padding: 10px;
+    border-radius: 4px;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+#currentUserInfo {
+    text-align: right;
+    font-style: italic;
+    margin-bottom: 15px;
+    color: #555;
+}
+
+#logoutButton {
+    background-color: #dc3545;
+}
+#logoutButton:hover {
+    background-color: #c82333;
+}

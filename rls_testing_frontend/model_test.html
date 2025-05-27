@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Model RLS Tests</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Model RLS Policy Tests</h1>
+        <div id="currentUserInfo">Loading user info...</div>
+        <a href="index.html">Back to Role Selection</a> | <button id="logoutButton" style="float:right;">Logout</button>
+        <hr>
+
+        <!-- User Profiles Tests -->
+        <div class="test-section">
+            <h2>User Profiles Table (as Model)</h2>
+            <button onclick="clearResults('userProfilesResults')">Clear Results</button>
+            <div>
+                <h4>SELECT Own Profile</h4>
+                <button onclick="testModelViewOwnProfile()">View Own Profile</button>
+            </div>
+            <div>
+                <h4>SELECT Other User's Profile (Should Fail or Be Empty)</h4>
+                <input type="text" id="modelViewOtherProfileId" placeholder="Another User ID (non-owner)">
+                <button onclick="testModelViewOtherProfile()">View Other Profile</button>
+            </div>
+            <div>
+                <h4>UPDATE Own Profile (Non-Role Fields - Should Fail)</h4>
+                <input type="text" id="modelUpdateProfileFullName" placeholder="New Full Name">
+                <input type="text" id="modelUpdateProfileTelegram" placeholder="New Telegram Username">
+                <button onclick="testModelUpdateOwnProfile()">Update Own Profile</button>
+                 <p><small>Note: RLS `user_profiles_update` now restricts all updates to 'owner' only. This test should demonstrate failure.</small></p>
+            </div>
+            <div id="userProfilesResults" class="results-container"></div>
+        </div>
+
+        <!-- Models Table Tests -->
+        <div class="test-section">
+            <h2>Models Table (as Model)</h2>
+            <button onclick="clearResults('modelsResults')">Clear Results</button>
+            <div>
+                <h4>SELECT Own Model Record</h4>
+                <button onclick="testModelViewOwnRecord()">View Own Model Record</button>
+            </div>
+            <div>
+                <h4>SELECT Other Model's Record (Should Fail or Be Empty)</h4>
+                <input type="text" id="modelViewOtherModelId" placeholder="Another Model's ID">
+                <button onclick="testModelViewOtherRecord()">View Other Model's Record</button>
+            </div>
+            <div>
+                <h4>UPDATE Own Model Record (Non-Financial Fields)</h4>
+                <input type="text" id="modelUpdateOwnNickname" placeholder="New Nickname">
+                <button onclick="testModelUpdateOwnRecordNonFinancial()">Update Own Nickname</button>
+            </div>
+            <div>
+                <h4>UPDATE Own Model Record (Financial Fields - Should Fail due to Trigger)</h4>
+                <input type="number" step="any" id="modelUpdateOwnFee" placeholder="Attempt New Platform Fee % (e.g., 10.0)">
+                <button onclick="testModelUpdateOwnRecordFinancial()">Attempt to Update Own Fee</button>
+            </div>
+            <div>
+                <h4>INSERT New Model Record (Should Fail)</h4>
+                <button onclick="testModelInsertRecord()">Attempt to Insert New Model</button>
+            </div>
+            <div>
+                <h4>DELETE Own Model Record (Should Fail)</h4>
+                <button onclick="testModelDeleteOwnRecord()">Attempt to Delete Own Model</button>
+            </div>
+            <div id="modelsResults" class="results-container"></div>
+        </div>
+
+        <!-- Business Logic Tables (Model - mostly no access) -->
+        <div class="test-section">
+            <h2>Business Logic Tables (as Model)</h2>
+            <button onclick="clearResults('businessTablesResults')">Clear Results</button>
+            <p>Models should generally NOT have access to these tables, except for `platform_settings` (SELECT only).</p>
+            <button onclick="testModelBusinessTables()">Test Access to Business Tables</button>
+            <div id="businessTablesResults" class="results-container"></div>
+        </div>
+
+    </div>
+
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script defer src="shared.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof supabase === 'undefined' || !supabase) {
+            console.error("Supabase client is not available in model_test.html.");
+            const container = document.querySelector('.container');
+            if (container) {
+                const errorMsg = document.createElement('p');
+                errorMsg.textContent = 'Error: Supabase client not initialized. Please check the console.';
+                errorMsg.style.color = 'red';
+                container.prepend(errorMsg);
+            }
+            return;
+        }
+        // Initialize event listeners or other page-specific logic here if needed
+    });
+
+        // User Profiles Tests
+        async function testModelViewOwnProfile() {
+            const userId = await getCurrentUserId();
+            if (!userId) {
+                displayResults('userProfilesResults', 'Model View Own Profile', null, { message: 'Not logged in or user ID not found.' });
+                return;
+            }
+            const { data, error } = await supabase.from('user_profiles').select('*').eq('id', userId).single();
+            displayResults('userProfilesResults', 'Model View Own Profile', data, error);
+        }
+
+        async function testModelViewOtherProfile() {
+            const otherUserId = document.getElementById('modelViewOtherProfileId').value;
+            if (!otherUserId) {
+                displayResults('userProfilesResults', 'Model View Other Profile', null, { message: 'Other User ID is required.' });
+                return;
+            }
+            const { data, error } = await supabase.from('user_profiles').select('*').eq('id', otherUserId).maybeSingle();
+            displayResults('userProfilesResults', 'Model View Other Profile (Should Fail/Be Empty)', data, error);
+        }
+
+        async function testModelUpdateOwnProfile() {
+            const userId = await getCurrentUserId();
+            if (!userId) {
+                displayResults('userProfilesResults', 'Model Update Own Profile', null, { message: 'Not logged in or user ID not found.' });
+                return;
+            }
+            const fullName = document.getElementById('modelUpdateProfileFullName').value;
+            const telegram = document.getElementById('modelUpdateProfileTelegram').value;
+            let updateData = {};
+            if (fullName) updateData.full_name = fullName;
+            if (telegram) updateData.telegram_username = telegram;
+
+            if (Object.keys(updateData).length === 0) {
+                displayResults('userProfilesResults', 'Model Update Own Profile', null, { message: 'No update data provided.' });
+                return;
+            }
+            // This should fail due to RLS user_profiles_update policy
+            const { data, error } = await supabase.from('user_profiles').update(updateData).eq('id', userId).select();
+            displayResults('userProfilesResults', 'Model Update Own Profile (Should Fail)', data, error);
+        }
+
+        // Models Table Tests
+        async function getModelIdForCurrentUser() {
+            const userId = await getCurrentUserId();
+            if (!userId) return null;
+            // Assuming a model's user_id in the 'models' table links to their 'user_profiles' id.
+            // This select should work if RLS allows model to see their own record.
+            const { data, error } = await supabase.from('models').select('id').eq('user_id', userId).maybeSingle();
+            if (error || !data) {
+                console.error('Could not fetch model ID for current user:', error);
+                return null;
+            }
+            return data.id;
+        }
+
+        async function testModelViewOwnRecord() {
+            const userId = await getCurrentUserId();
+            if (!userId) {
+                 displayResults('modelsResults', 'Model View Own Record', null, { message: 'Not logged in or user ID not found.' });
+                return;
+            }
+            // RLS: (public.get_user_role() = 'model' AND user_id = auth.uid()) OR ...
+            const { data, error } = await supabase.from('models').select('*').eq('user_id', userId).maybeSingle();
+            displayResults('modelsResults', 'Model View Own Record', data, error);
+        }
+
+        async function testModelViewOtherRecord() {
+            const otherModelId = document.getElementById('modelViewOtherModelId').value;
+            if (!otherModelId) {
+                displayResults('modelsResults', 'Model View Other Model Record', null, { message: 'Other Model ID is required.' });
+                return;
+            }
+            const { data, error } = await supabase.from('models').select('*').eq('id', otherModelId).maybeSingle();
+            displayResults('modelsResults', 'Model View Other Model Record (Should Fail/Be Empty)', data, error);
+        }
+
+        async function testModelUpdateOwnRecordNonFinancial() {
+            const modelId = await getModelIdForCurrentUser();
+            if (!modelId) {
+                displayResults('modelsResults', 'Model Update Own Record (Non-Financial)', null, { message: 'Could not get own Model ID to update.' });
+                return;
+            }
+            const nickname = document.getElementById('modelUpdateOwnNickname').value;
+            if (!nickname) {
+                displayResults('modelsResults', 'Model Update Own Record (Non-Financial)', null, { message: 'New Nickname is required.' });
+                return;
+            }
+            // RLS: (public.get_user_role() = 'model' AND user_id = auth.uid()) OR public.get_user_role() = 'owner'
+            const { data, error } = await supabase.from('models').update({ nickname: nickname }).eq('id', modelId).select();
+            displayResults('modelsResults', 'Model Update Own Record (Non-Financial)', data, error);
+        }
+
+        async function testModelUpdateOwnRecordFinancial() {
+            const modelId = await getModelIdForCurrentUser();
+            if (!modelId) {
+                displayResults('modelsResults', 'Model Update Own Record (Financial)', null, { message: 'Could not get own Model ID to update.' });
+                return;
+            }
+            const feeString = document.getElementById('modelUpdateOwnFee').value;
+            if (!feeString) {
+                displayResults('modelsResults', 'Model Update Own Record (Financial)', null, { message: 'Platform Fee is required.' });
+                return;
+            }
+            const fee = parseFloat(feeString);
+            if (isNaN(fee)) {
+                 displayResults('modelsResults', 'Model Update Own Record (Financial)', null, { message: 'Invalid fee value.' });
+                return;
+            }
+            // This should be blocked by the 'restrict_model_financial_updates' trigger
+            const { data, error } = await supabase.from('models').update({ platform_fee_percentage: fee }).eq('id', modelId).select();
+            displayResults('modelsResults', 'Model Update Own Record (Financial - Should Fail due to Trigger)', data, error);
+        }
+
+        async function testModelInsertRecord() {
+            const userId = await getCurrentUserId();
+             if (!userId) {
+                 displayResults('modelsResults', 'Model Insert Record', null, { message: 'Not logged in or user ID not found.' });
+                return;
+            }
+            // Models cannot insert new model records
+            const { data, error } = await supabase.from('models').insert([{ user_id: userId, nickname: 'Test Model Insert', platform_fee_percentage: 10 }]).select();
+            displayResults('modelsResults', 'Model Insert New Record (Should Fail)', data, error);
+        }
+
+        async function testModelDeleteOwnRecord() {
+            const modelId = await getModelIdForCurrentUser();
+            if (!modelId) {
+                displayResults('modelsResults', 'Model Delete Own Record', null, { message: 'Could not get own Model ID to delete.' });
+                return;
+            }
+            // Models cannot delete model records
+            const { data, error } = await supabase.from('models').delete().eq('id', modelId);
+            displayResults('modelsResults', 'Model Delete Own Record (Should Fail)', data, error ? error : {message: "Delete operation sent."});
+        }
+
+        // Business Logic Tables
+        async function testModelBusinessTables() {
+            clearResults('businessTablesResults');
+            const tablesNoAccess = [
+                'user_model_assignments',
+                'user_financial_settings',
+                'model_specific_settings'
+            ];
+            const platformSettingsTable = 'platform_settings';
+
+            for (const table of tablesNoAccess) {
+                const { data: selectData, error: selectError } = await supabase.from(table).select('*').limit(1);
+                displayResults('businessTablesResults', 'Model SELECT ' + table + ' (Should Fail)', selectData, selectError);
+            }
+
+            const { data: psSelectData, error: psSelectError } = await supabase.from(platformSettingsTable).select('*').limit(1);
+            displayResults('businessTablesResults', 'Model SELECT ' + platformSettingsTable + ' (Should Succeed)', psSelectData, psSelectError);
+
+            const { data: psUpdateData, error: psUpdateError } = await supabase.from(platformSettingsTable).update({ value: 'model_test_update' }).eq('key', 'some_existing_key').select();
+            displayResults('businessTablesResults', 'Model UPDATE ' + platformSettingsTable + ' (Should Fail)', psUpdateData, psUpdateError);
+        }
+    </script>
+</body>
+</html>

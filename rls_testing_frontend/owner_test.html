@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Owner RLS Tests</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Owner RLS Policy Tests</h1>
+        <div id="currentUserInfo">Loading user info...</div>
+        <a href="index.html">Back to Role Selection</a> | <button id="logoutButton" style="float:right;">Logout</button>
+        <hr>
+
+        <!-- User Profiles Tests -->
+        <div class="test-section">
+            <h2>User Profiles Table (as Owner)</h2>
+            <button onclick="clearResults('userProfilesResults')">Clear Results</button>
+
+            <div>
+                <h4>SELECT</h4>
+                <input type="text" id="ownerViewProfileId" placeholder="User ID to view (or blank for all)">
+                <button onclick="testOwnerViewUserProfile()">View Profile(s)</button>
+            </div>
+            <div>
+                <h4>UPDATE</h4>
+                <input type="text" id="ownerUpdateProfileId" placeholder="User ID to update" required>
+                <input type="text" id="ownerUpdateProfileFullName" placeholder="New Full Name">
+                <input type="text" id="ownerUpdateProfileTelegram" placeholder="New Telegram Username">
+                <input type="text" id="ownerUpdateProfileRole" placeholder="New Role (e.g., manager, model)">
+                <input type="text" id="ownerUpdateProfileSupervisorId" placeholder="Supervisor ID (UUID, or blank to clear)">
+                <button onclick="testOwnerUpdateUserProfile()">Update Profile</button>
+            </div>
+            <div>
+                <h4>INSERT</h4>
+                <p><small>Note: For this test, the 'New User ID (UUID)' must correspond to an existing user in <code>auth.users</code> that does not yet have a profile in <code>user_profiles</code>.</small></p>
+                <input type="text" id="ownerInsertProfileId" placeholder="New User ID (UUID from auth.users)" required>
+                <input type="text" id="ownerInsertProfileFullName" placeholder="Full Name" required>
+                <input type="text" id="ownerInsertProfileRole" placeholder="Role (e.g., model)" required>
+                <button onclick="testOwnerInsertUserProfile()">Insert Profile</button>
+            </div>
+            <div>
+                <h4>DELETE</h4>
+                <input type="text" id="ownerDeleteProfileId" placeholder="User ID to delete" required>
+                <button onclick="testOwnerDeleteUserProfile()">Delete Profile</button>
+            </div>
+            <div id="userProfilesResults" class="results-container"></div>
+        </div>
+
+        <!-- Models Table Tests -->
+        <div class="test-section">
+            <h2>Models Table (as Owner)</h2>
+            <button onclick="clearResults('modelsResults')">Clear Results</button>
+            <div>
+                <h4>SELECT</h4>
+                 <input type="text" id="ownerViewModelId" placeholder="Model ID to view (or blank for all)">
+                <button onclick="testOwnerViewModel()">View Model(s)</button>
+            </div>
+            <div>
+                <h4>UPDATE</h4>
+                <input type="text" id="ownerUpdateModelId" placeholder="Model ID to update" required>
+                <input type="text" id="ownerUpdateModelName" placeholder="New Name">
+                <input type="number" step="any" id="ownerUpdateModelFee" placeholder="New Platform Fee % (e.g., 20.5)">
+                <button onclick="testOwnerUpdateModel()">Update Model</button>
+            </div>
+            <div>
+                <h4>INSERT</h4>
+                <input type="text" id="ownerInsertModelUserId" placeholder="Associated User ID (for model)" required>
+                <input type="text" id="ownerInsertModelName" placeholder="Name" required>
+                <button onclick="testOwnerInsertModel()">Insert Model</button>
+            </div>
+            <div>
+                <h4>DELETE</h4>
+                <input type="text" id="ownerDeleteModelId" placeholder="Model ID to delete" required>
+                <button onclick="testOwnerDeleteModel()">Delete Model</button>
+            </div>
+            <div id="modelsResults" class="results-container"></div>
+        </div>
+
+        <!-- Other Business Logic Tables (Owner Only) -->
+        <div class="test-section">
+            <h2>Business Logic Tables (Owner Full Access)</h2>
+            <p>Owners should have full CRUD access to these tables.</p>
+            <button onclick="testOwnerBusinessTables()">Test Full Access to Business Tables</button>
+            <div id="businessTablesResults" class="results-container"></div>
+        </div>
+
+        <!-- User Model Assignments Table Tests -->
+        <div class="test-section">
+            <h2>User Model Assignments Table (as Owner)</h2>
+            <button onclick="clearResults('userModelAssignmentsResults')">Clear Results</button>
+            <div>
+                <h4>View All Assignments</h4>
+                <button onclick="testOwnerViewAllAssignments()">View Assignments</button>
+            </div>
+            <div>
+                <h4>Assign User to Model</h4>
+                <input type="text" id="assignUserId" placeholder="User ID (Manager/Chatter)" required>
+                <input type="text" id="assignModelId" placeholder="Model ID" required>
+                <button onclick="testOwnerAssignUserToModel()">Assign User</button>
+            </div>
+            <div>
+                <h4>Unassign User from Model</h4>
+                <input type="text" id="unassignUserId" placeholder="User ID (Manager/Chatter)" required>
+                <input type="text" id="unassignModelId" placeholder="Model ID" required>
+                <button onclick="testOwnerUnassignUserFromModel()">Unassign User</button>
+            </div>
+            <div id="userModelAssignmentsResults" class="results-container"></div>
+        </div>
+
+        <!-- User Financial Settings Table Tests -->
+        <div class="test-section">
+            <h2>User Financial Settings Table (as Owner)</h2>
+            <button onclick="clearResults('userFinancialSettingsResults')">Clear Results</button>
+            <div>
+                <h4>View User Financial Settings</h4>
+                <input type="text" id="finViewUserId" placeholder="User ID" required>
+                <button onclick="testOwnerViewFinancialSettings()">View Settings</button>
+            </div>
+            <div>
+                <h4>Set/Update User Financial Settings</h4>
+                <input type="text" id="finSetUserId" placeholder="User ID" required>
+                <select id="finSetSalaryType">
+                    <option value="commission_only">Commission Only</option>
+                    <option value="fixed_only">Fixed Only</option>
+                    <option value="fixed_plus_commission">Fixed + Commission</option>
+                    <option value="passive_tick_only">Passive Tick Only</option>
+                </select>
+                <input type="number" step="any" id="finSetCommissionPercentage" placeholder="Commission % (e.g., 50.0)">
+                <input type="number" step="any" id="finSetFixedSalary" placeholder="Fixed Salary Amount">
+                <input type="number" step="any" id="finSetManagerPassiveTick" placeholder="Manager Passive Tick %">
+                <button onclick="testOwnerSetFinancialSettings()">Set/Update Settings</button>
+            </div>
+            <div id="userFinancialSettingsResults" class="results-container"></div>
+        </div>
+
+
+    </div>
+
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script defer src="shared.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof supabase === 'undefined' || !supabase) {
+            console.error("Supabase client is not available in owner_test.html.");
+            // Optionally, display an error message on the page
+            const container = document.querySelector('.container');
+            if (container) {
+                const errorMsg = document.createElement('p');
+                errorMsg.textContent = 'Error: Supabase client not initialized. Please check the console and ensure shared.js and Supabase CDN are loaded correctly.';
+                errorMsg.style.color = 'red';
+                container.prepend(errorMsg);
+            }
+            return;
+        }
+        // All subsequent code that uses 'supabase' should be within this block or called from here.
+    });
+
+        // User Profiles Tests
+        async function testOwnerViewUserProfile() {
+            console.log('[owner_test.js] testOwnerViewUserProfile called'); // DEBUG
+            const profileId = document.getElementById('ownerViewProfileId').value;
+            console.log('[owner_test.js] profileId to view:', profileId ? profileId : "All (blank)"); // DEBUG
+            let query = supabase.from('user_profiles').select('*');
+            if (profileId) {
+                query = query.eq('id', profileId).maybeSingle();
+            }
+            console.log('[owner_test.js] Executing query...'); // DEBUG
+            const { data, error } = await query;
+            console.log('[owner_test.js] Query result - Data:', data, 'Error:', error); // DEBUG
+            displayResults('userProfilesResults', 'Owner View User Profile(s)', data, error);
+        }
+
+        async function testOwnerUpdateUserProfile() {
+            const profileId = document.getElementById('ownerUpdateProfileId').value;
+            const fullName = document.getElementById('ownerUpdateProfileFullName').value;
+            const telegram = document.getElementById('ownerUpdateProfileTelegram').value;
+            const role = document.getElementById('ownerUpdateProfileRole').value;
+            const supervisorId = document.getElementById('ownerUpdateProfileSupervisorId').value;
+
+            if (!profileId) {
+                displayResults('userProfilesResults', 'Owner Update User Profile', null, { message: 'User ID is required.' });
+                return;
+            }
+            let updateData = {};
+            if (fullName) updateData.full_name = fullName;
+            if (telegram) updateData.telegram_username = telegram;
+            if (role) updateData.role = role;
+            // Handle supervisor_id: if blank, set to null; otherwise, use the value.
+            // Ensure it's a valid UUID or null. For simplicity, this test assumes valid input or relies on DB constraints.
+            if (supervisorId === "") {
+                updateData.supervisor_id = null;
+            } else if (supervisorId) { // only add if supervisorId has a value
+                updateData.supervisor_id = supervisorId;
+            }
+
+
+            if (Object.keys(updateData).length === 0) {
+                 displayResults('userProfilesResults', 'Owner Update User Profile', null, { message: 'No update data provided (excluding supervisor ID if only it was changed and was blank).' });
+                return;
+            }
+
+            const { data, error } = await supabase.from('user_profiles').update(updateData).eq('id', profileId).select();
+            displayResults('userProfilesResults', 'Owner Update User Profile', data, error);
+        }
+
+        async function testOwnerInsertUserProfile() {
+            const id = document.getElementById('ownerInsertProfileId').value;
+            const full_name = document.getElementById('ownerInsertProfileFullName').value;
+            const role = document.getElementById('ownerInsertProfileRole').value;
+
+            if (!id || !full_name || !role) {
+                displayResults('userProfilesResults', 'Owner Insert User Profile', null, { message: 'User ID, Full Name, and Role are required for insert.' });
+                return;
+            }
+            // The 'email' field was removed as it's not in user_profiles.
+            // 'onboarded_at' was also removed as it's not a column. 'created_at' has a default.
+            const { data, error } = await supabase.from('user_profiles').insert([{ id, full_name, role }]).select();
+            displayResults('userProfilesResults', 'Owner Insert User Profile', data, error);
+        }
+
+        async function testOwnerDeleteUserProfile() {
+            const profileId = document.getElementById('ownerDeleteProfileId').value;
+            if (!profileId) {
+                displayResults('userProfilesResults', 'Owner Delete User Profile', null, { message: 'User ID is required.' });
+                return;
+            }
+            const { data, error } = await supabase.from('user_profiles').delete().eq('id', profileId);
+            displayResults('userProfilesResults', 'Owner Delete User Profile', data, error ? error : {message: "Delete operation sent. Check console/network for actual result if no data/error object returned."});
+        }
+
+        // Models Table Tests
+        async function testOwnerViewModel() {
+            const modelId = document.getElementById('ownerViewModelId').value;
+            let query = supabase.from('models').select('*');
+            if (modelId) {
+                query = query.eq('id', modelId).maybeSingle();
+            }
+            const { data, error } = await query;
+            displayResults('modelsResults', 'Owner View Model(s)', data, error);
+        }
+
+        async function testOwnerUpdateModel() {
+            const modelId = document.getElementById('ownerUpdateModelId').value;
+            const name = document.getElementById('ownerUpdateModelName').value;
+            const feeString = document.getElementById('ownerUpdateModelFee').value;
+
+            if (!modelId) {
+                displayResults('modelsResults', 'Owner Update Model', null, { message: 'Model ID is required.' });
+                return;
+            }
+            let updateData = {};
+            if (name) updateData.name = name;
+            if (feeString) {
+                const fee = parseFloat(feeString);
+                if (!isNaN(fee)) {
+                    updateData.platform_fee_percentage = fee;
+                } else {
+                    displayResults('modelsResults', 'Owner Update Model', null, { message: 'Invalid platform fee percentage.' });
+                    return;
+                }
+            }
+             if (Object.keys(updateData).length === 0) {
+                 displayResults('modelsResults', 'Owner Update Model', null, { message: 'No update data provided.' });
+                return;
+            }
+            const { data, error } = await supabase.from('models').update(updateData).eq('id', modelId).select();
+            displayResults('modelsResults', 'Owner Update Model', data, error);
+        }
+
+        async function testOwnerInsertModel() {
+            const userId = document.getElementById('ownerInsertModelUserId').value;
+            const name = document.getElementById('ownerInsertModelName').value;
+             if (!userId || !name) {
+                displayResults('modelsResults', 'Owner Insert Model', null, { message: 'User ID and Name are required.' });
+                return;
+            }
+            const { data, error } = await supabase.from('models').insert([{ user_id: userId, name: name, platform_fee_percentage: 0, created_at: new Date() }]).select();
+            displayResults('modelsResults', 'Owner Insert Model', data, error);
+        }
+
+        async function testOwnerDeleteModel() {
+            const modelId = document.getElementById('ownerDeleteModelId').value;
+            if (!modelId) {
+                displayResults('modelsResults', 'Owner Delete Model', null, { message: 'Model ID is required.' });
+                return;
+            }
+            const { data, error } = await supabase.from('models').delete().eq('id', modelId);
+            displayResults('modelsResults', 'Owner Delete Model', data, error ? error : {message: "Delete operation sent."});
+        }
+
+        // Business Logic Tables Test
+        async function testOwnerBusinessTables() {
+            clearResults('businessTablesResults');
+            const tables = [
+                'user_model_assignments',
+                'user_financial_settings',
+                'platform_settings', // SELECT for all, CRUD for owner
+                'model_specific_settings'
+            ];
+            const testId = '00000000-0000-0000-0000-000000000000'; // Dummy UUID for testing inserts/updates
+
+            for (const table of tables) {
+                // Test SELECT
+                const { data: selectData, error: selectError } = await supabase.from(table).select('*').limit(1);
+                displayResults('businessTablesResults', 'Owner SELECT ' + table, selectData, selectError);
+
+                if (table === 'platform_settings' && selectError && selectError.message.includes("permission denied")) {
+                     // This might happen if RLS for select is too restrictive even for owner, or if table is empty and select limit 1 returns specific error
+                    console.warn('Owner SELECT on ' + table + ' might have issues or table is empty.');
+                }
+
+
+                // Test INSERT (simple dummy data)
+                let insertPayload = {};
+                let canTestInsertUpdateDelete = true;
+                let pkColumn = 'id'; // Default PK column name
+
+                if (table === 'user_model_assignments') {
+                    // Requires valid user_id and model_id, skip generic insert/update/delete
+                    canTestInsertUpdateDelete = false;
+                    displayResults('businessTablesResults', 'Owner INSERT/UPDATE/DELETE ' + table, null, { message: "Skipped for generic test: Requires valid user_id & model_id." });
+                } else if (table === 'user_financial_settings') {
+                    // Requires a valid user_id that exists in user_profiles.
+                    canTestInsertUpdateDelete = false;
+                    displayResults('businessTablesResults', 'Owner INSERT/UPDATE/DELETE ' + table, null, { message: "Skipped for generic test: Requires a valid user_id." });
+                    // insertPayload = { user_id: testId, commission_percentage: 50, salary_type: 'commission_only' };
+                    // pkColumn = 'user_id';
+                } else if (table === 'platform_settings') {
+                    // This is a singleton table, INSERT will likely fail if row exists. Focus on UPDATE.
+                    canTestInsertUpdateDelete = false; // Skip generic insert/delete for singleton
+                    const { data: updateData, error: updateError } = await supabase.from(table).update({ default_platform_fee_percentage: 21.5 }).eq('id', 1).select().single();
+                    displayResults('businessTablesResults', 'Owner UPDATE ' + table, updateData, updateError);
+                    // Revert if successful for idempotency, ensuring the value is a number
+                    if (updateData && typeof updateData.default_platform_fee_percentage === 'number') {
+                        await supabase.from(table).update({ default_platform_fee_percentage: 20.0 }).eq('id', 1);
+                    } else if (updateData) { // if updateData exists but fee is not a number, still try to revert with default
+                         await supabase.from(table).update({ default_platform_fee_percentage: 20.0 }).eq('id', 1);
+                    }
+                } else if (table === 'model_specific_settings') {
+                    // Requires a valid model_id that exists in models.
+                    canTestInsertUpdateDelete = false;
+                    displayResults('businessTablesResults', 'Owner INSERT/UPDATE/DELETE ' + table, null, { message: "Skipped for generic test: Requires a valid model_id." });
+                    // insertPayload = { model_id: testId, platform_fee_percentage: 15.0 };
+                    // pkColumn = 'model_id';
+                }
+                
+                // The generic INSERT/UPDATE/DELETE block below will only run if canTestInsertUpdateDelete is true
+                // and an insertPayload was defined (which is now only for hypothetical future tables in this loop).
+                // For the current tables, specific handling or skipping is done above.
+                if (canTestInsertUpdateDelete && Object.keys(insertPayload).length > 0) {
+                    // This block is unlikely to be hit with current table list due to specific handling above
+                    const { data: insertData, error: insertError } = await supabase.from(table).insert([insertPayload]).select().single();
+                    displayResults('businessTablesResults', 'Owner INSERT ' + table, insertData, insertError);
+
+                    if (insertData && insertData[pkColumn]) {
+                        const createdId = insertData[pkColumn];
+                        let updateP = {}; // Placeholder for update payload
+                        // Define updateP based on table if necessary for a hypothetical generic table
+                        if (Object.keys(updateP).length > 0) {
+                             const { data: updateD, error: updateE } = await supabase.from(table).update(updateP).eq(pkColumn, createdId).select().single();
+                             displayResults('businessTablesResults', 'Owner UPDATE ' + table + ' (id: ' + createdId + ')', updateD, updateE);
+                        }
+                        const { error: deleteE } = await supabase.from(table).delete().eq(pkColumn, createdId);
+                        displayResults('businessTablesResults', 'Owner DELETE ' + table + ' (id: ' + createdId + ')', null, deleteE);
+                    } else if (insertError) {
+                        console.warn('Skipping UPDATE/DELETE for ' + table + ' due to INSERT error or no ID returned: ' + (insertError.message || JSON.stringify(insertError)));
+                    }
+                } else if (canTestInsertUpdateDelete && Object.keys(insertPayload).length === 0) { 
+                     displayResults('businessTablesResults', 'Owner INSERT ' + table, null, {message: "Skipped: No specific insert payload defined for this generic table test."});
+                }
+            }
+        }
+
+        // User Model Assignments Tests
+        async function testOwnerViewAllAssignments() {
+            console.log('[owner_test.js] testOwnerViewAllAssignments called');
+            const { data, error } = await supabase.from('user_model_assignments').select('*');
+            displayResults('userModelAssignmentsResults', 'Owner View All Assignments', data, error);
+        }
+
+        async function testOwnerAssignUserToModel() {
+            const userId = document.getElementById('assignUserId').value;
+            const modelId = document.getElementById('assignModelId').value;
+            console.log('[owner_test.js] testOwnerAssignUserToModel called for UserID:', userId, 'ModelID:', modelId);
+
+            if (!userId || !modelId) {
+                displayResults('userModelAssignmentsResults', 'Owner Assign User to Model', null, { message: 'User ID and Model ID are required.' });
+                return;
+            }
+            const { data, error } = await supabase.from('user_model_assignments').insert([{ user_id: userId, model_id: modelId }]).select();
+            displayResults('userModelAssignmentsResults', 'Owner Assign User to Model', data, error);
+        }
+
+        async function testOwnerUnassignUserFromModel() {
+            const userId = document.getElementById('unassignUserId').value;
+            const modelId = document.getElementById('unassignModelId').value;
+            console.log('[owner_test.js] testOwnerUnassignUserFromModel called for UserID:', userId, 'ModelID:', modelId);
+
+            if (!userId || !modelId) {
+                displayResults('userModelAssignmentsResults', 'Owner Unassign User from Model', null, { message: 'User ID and Model ID are required.' });
+                return;
+            }
+            const { data, error } = await supabase.from('user_model_assignments').delete().eq('user_id', userId).eq('model_id', modelId);
+            // Delete doesn't typically return data in the same way as select/insert, so data might be null/empty on success
+            displayResults('userModelAssignmentsResults', 'Owner Unassign User from Model', data, error ? error : { message: "Unassign operation sent. Check if successful." });
+        }
+
+        // User Financial Settings Tests
+        async function testOwnerViewFinancialSettings() {
+            const userId = document.getElementById('finViewUserId').value;
+            if (!userId) {
+                displayResults('userFinancialSettingsResults', 'Owner View Financial Settings', null, { message: 'User ID is required.' });
+                return;
+            }
+            console.log('[owner_test.js] testOwnerViewFinancialSettings for UserID:', userId);
+            const { data, error } = await supabase.from('user_financial_settings').select('*').eq('user_id', userId).maybeSingle();
+            displayResults('userFinancialSettingsResults', 'Owner View Financial Settings', data, error);
+        }
+
+        async function testOwnerSetFinancialSettings() {
+            const userId = document.getElementById('finSetUserId').value;
+            const salaryType = document.getElementById('finSetSalaryType').value;
+            const commissionStr = document.getElementById('finSetCommissionPercentage').value;
+            const fixedSalaryStr = document.getElementById('finSetFixedSalary').value;
+            const passiveTickStr = document.getElementById('finSetManagerPassiveTick').value;
+
+            if (!userId || !salaryType) {
+                displayResults('userFinancialSettingsResults', 'Owner Set Financial Settings', null, { message: 'User ID and Salary Type are required.' });
+                return;
+            }
+
+            let settings = {
+                user_id: userId,
+                salary_type: salaryType
+            };
+            if (commissionStr) settings.commission_percentage = parseFloat(commissionStr);
+            if (fixedSalaryStr) settings.fixed_salary_amount = parseFloat(fixedSalaryStr);
+            if (passiveTickStr) settings.manager_passive_tick_percentage = parseFloat(passiveTickStr);
+
+            // Basic validation based on salary_type (can be enhanced)
+            if (salaryType === 'commission_only' && !settings.commission_percentage) {
+                 displayResults('userFinancialSettingsResults', 'Owner Set Financial Settings', null, { message: 'Commission percentage is required for commission_only type.' });
+                return;
+            }
+             if (salaryType === 'fixed_only' && !settings.fixed_salary_amount) {
+                 displayResults('userFinancialSettingsResults', 'Owner Set Financial Settings', null, { message: 'Fixed salary amount is required for fixed_only type.' });
+                return;
+            }
+            // Add more validation as needed for other types.
+
+            console.log('[owner_test.js] testOwnerSetFinancialSettings for UserID:', userId, 'Settings:', settings);
+
+            // Upsert functionality: insert if not exists, update if exists.
+            // Supabase upsert returns the inserted/updated row(s) by default if .select() is added.
+            const { data, error } = await supabase.from('user_financial_settings').upsert(settings, { onConflict: 'user_id' }).select().single();
+            displayResults('userFinancialSettingsResults', 'Owner Set/Update Financial Settings', data, error);
+        }
+
+    </script>
+</body>
+</html>

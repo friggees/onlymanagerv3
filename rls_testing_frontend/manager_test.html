@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manager RLS Tests</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Manager RLS Policy Tests</h1>
+        <div id="currentUserInfo">Loading user info...</div>
+        <a href="index.html">Back to Role Selection</a> | <button id="logoutButton" style="float:right;">Logout</button>
+        <hr>
+
+        <!-- User Profiles Tests -->
+        <div class="test-section">
+            <h2>User Profiles Table (as Manager)</h2>
+            <button onclick="clearResults('userProfilesResults')">Clear Results</button>
+            <div>
+                <h4>SELECT Own Profile</h4>
+                <button onclick="testManagerViewOwnProfile()">View Own Profile</button>
+            </div>
+            <div>
+                <h4>SELECT Other User's Profile (Should Fail or Be Empty)</h4>
+                <input type="text" id="managerViewOtherProfileId" placeholder="Another User ID (non-owner)">
+                <button onclick="testManagerViewOtherProfile()">View Other Profile</button>
+            </div>
+            <div>
+                <h4>UPDATE Own Profile (Non-Role Fields)</h4>
+                <input type="text" id="managerUpdateProfileFullName" placeholder="New Full Name">
+                <input type="text" id="managerUpdateProfileTelegram" placeholder="New Telegram Username">
+                <button onclick="testManagerUpdateOwnProfile()">Update Own Profile</button>
+                <p><small>Note: RLS `user_profiles_update` now restricts all updates to 'owner' only. This test should demonstrate failure for non-owners.</small></p>
+            </div>
+            <div>
+                <h4>UPDATE Own Role (Should Fail)</h4>
+                <button onclick="testManagerUpdateOwnRole()">Attempt to Update Own Role to 'owner'</button>
+            </div>
+            <div>
+                <h4>UPDATE Other User's Profile (Should Fail)</h4>
+                <input type="text" id="managerUpdateOtherProfileId" placeholder="Another User ID">
+                <input type="text" id="managerUpdateOtherProfileFullName" placeholder="Attempt Full Name Change">
+                <button onclick="testManagerUpdateOtherProfile()">Update Other Profile</button>
+            </div>
+            <div id="userProfilesResults" class="results-container"></div>
+        </div>
+
+        <!-- Models Table Tests -->
+        <div class="test-section">
+            <h2>Models Table (as Manager)</h2>
+            <button onclick="clearResults('modelsResults')">Clear Results</button>
+            <div>
+                <h4>SELECT Assigned Models</h4>
+                <button onclick="testManagerViewAssignedModels()">View Assigned Models</button>
+                <p><small>Note: This requires `is_assigned_to_model(model_id)` to be implemented and working correctly. The current `is_assigned_to_model` is conceptual.</small></p>
+            </div>
+            <div>
+                <h4>SELECT Unassigned Model (Should Fail or Be Empty)</h4>
+                <input type="text" id="managerViewUnassignedModelId" placeholder="Unassigned Model ID">
+                <button onclick="testManagerViewUnassignedModel()">View Unassigned Model</button>
+            </div>
+            <div>
+                <h4>UPDATE Assigned Model (Should Fail - Managers cannot update models)</h4>
+                <input type="text" id="managerUpdateAssignedModelId" placeholder="Assigned Model ID">
+                <input type="text" id="managerUpdateAssignedModelNickname" placeholder="New Nickname">
+                <button onclick="testManagerUpdateAssignedModel()">Update Assigned Model</button>
+            </div>
+            <div id="modelsResults" class="results-container"></div>
+        </div>
+
+        <!-- Business Logic Tables (Manager - mostly no access) -->
+        <div class="test-section">
+            <h2>Business Logic Tables (as Manager)</h2>
+            <button onclick="clearResults('businessTablesResults')">Clear Results</button>
+            <p>Managers should generally NOT have access to these tables, except for `platform_settings` (SELECT only).</p>
+            <button onclick="testManagerBusinessTables()">Test Access to Business Tables</button>
+            <div id="businessTablesResults" class="results-container"></div>
+        </div>
+
+    </div>
+
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script defer src="shared.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof supabase === 'undefined' || !supabase) {
+            console.error("Supabase client is not available in manager_test.html.");
+            const container = document.querySelector('.container');
+            if (container) {
+                const errorMsg = document.createElement('p');
+                errorMsg.textContent = 'Error: Supabase client not initialized. Please check the console.';
+                errorMsg.style.color = 'red';
+                container.prepend(errorMsg);
+            }
+            return;
+        }
+        // Initialize event listeners or other page-specific logic here if needed
+    });
+
+        // User Profiles Tests
+        async function testManagerViewOwnProfile() {
+            const userId = await getCurrentUserId();
+            if (!userId) {
+                displayResults('userProfilesResults', 'Manager View Own Profile', null, { message: 'Not logged in or user ID not found.' });
+                return;
+            }
+            const { data, error } = await supabase.from('user_profiles').select('*').eq('id', userId).single();
+            displayResults('userProfilesResults', 'Manager View Own Profile', data, error);
+        }
+
+        async function testManagerViewOtherProfile() {
+            const otherUserId = document.getElementById('managerViewOtherProfileId').value;
+            if (!otherUserId) {
+                displayResults('userProfilesResults', 'Manager View Other Profile', null, { message: 'Other User ID is required.' });
+                return;
+            }
+            const { data, error } = await supabase.from('user_profiles').select('*').eq('id', otherUserId).maybeSingle();
+            displayResults('userProfilesResults', 'Manager View Other Profile (Should Fail/Be Empty)', data, error);
+        }
+
+        async function testManagerUpdateOwnProfile() {
+            const userId = await getCurrentUserId();
+            if (!userId) {
+                displayResults('userProfilesResults', 'Manager Update Own Profile', null, { message: 'Not logged in or user ID not found.' });
+                return;
+            }
+            const fullName = document.getElementById('managerUpdateProfileFullName').value;
+            const telegram = document.getElementById('managerUpdateProfileTelegram').value;
+            let updateData = {};
+            if (fullName) updateData.full_name = fullName;
+            if (telegram) updateData.telegram_username = telegram;
+
+            if (Object.keys(updateData).length === 0) {
+                displayResults('userProfilesResults', 'Manager Update Own Profile', null, { message: 'No update data provided.' });
+                return;
+            }
+            // This should fail due to RLS user_profiles_update policy restricting to owners
+            const { data, error } = await supabase.from('user_profiles').update(updateData).eq('id', userId).select();
+            displayResults('userProfilesResults', 'Manager Update Own Profile (Should Fail)', data, error);
+        }
+
+        async function testManagerUpdateOwnRole() {
+            const userId = await getCurrentUserId();
+            if (!userId) {
+                displayResults('userProfilesResults', 'Manager Update Own Role', null, { message: 'Not logged in or user ID not found.' });
+                return;
+            }
+            // This should fail due to RLS (and potentially trigger if it allowed self-update of role)
+            const { data, error } = await supabase.from('user_profiles').update({ role: 'owner' }).eq('id', userId).select();
+            displayResults('userProfilesResults', 'Manager Update Own Role to Owner (Should Fail)', data, error);
+        }
+
+        async function testManagerUpdateOtherProfile() {
+            const otherUserId = document.getElementById('managerUpdateOtherProfileId').value;
+            const fullName = document.getElementById('managerUpdateOtherProfileFullName').value;
+            if (!otherUserId || !fullName) {
+                displayResults('userProfilesResults', 'Manager Update Other Profile', null, { message: 'Other User ID and Full Name are required.' });
+                return;
+            }
+            // This should fail
+            const { data, error } = await supabase.from('user_profiles').update({ full_name: fullName }).eq('id', otherUserId).select();
+            displayResults('userProfilesResults', 'Manager Update Other Profile (Should Fail)', data, error);
+        }
+
+
+        // Models Table Tests
+        async function testManagerViewAssignedModels() {
+            // This test relies on a properly implemented is_assigned_to_model(model_id) SQL function
+            // or similar logic in RLS that allows managers to see models they are assigned to.
+            // The current RLS for models_select: (public.get_user_role() = 'model' AND user_id = auth.uid()) OR is_assigned_to_model(id) OR public.get_user_role() = 'owner'
+            // Since is_assigned_to_model is conceptual, this might not return data unless the function exists and works.
+            // We will attempt a generic select which should only return models if the RLS policy allows.
+            const { data, error } = await supabase.from('models').select('*');
+            displayResults('modelsResults', 'Manager View Assigned Models (Relies on is_assigned_to_model)', data, error);
+             if (!error && (!data || data.length === 0)) {
+                displayResults('modelsResults', 'Manager View Assigned Models (Relies on is_assigned_to_model)', 'No models returned. This could be correct if no models are assigned, or if is_assigned_to_model() is not effective/implemented.', null);
+            }
+        }
+
+        async function testManagerViewUnassignedModel() {
+            const modelId = document.getElementById('managerViewUnassignedModelId').value;
+            if (!modelId) {
+                displayResults('modelsResults', 'Manager View Unassigned Model', null, { message: 'Unassigned Model ID is required.' });
+                return;
+            }
+            const { data, error } = await supabase.from('models').select('*').eq('id', modelId).maybeSingle();
+            displayResults('modelsResults', 'Manager View Unassigned Model (Should Fail/Be Empty)', data, error);
+        }
+
+        async function testManagerUpdateAssignedModel() {
+            const modelId = document.getElementById('managerUpdateAssignedModelId').value;
+            const nickname = document.getElementById('managerUpdateAssignedModelNickname').value;
+            if (!modelId || !nickname) {
+                displayResults('modelsResults', 'Manager Update Assigned Model', null, { message: 'Model ID and Nickname are required.' });
+                return;
+            }
+            // Managers should not be able to update models according to current RLS
+            const { data, error } = await supabase.from('models').update({ nickname: nickname }).eq('id', modelId).select();
+            displayResults('modelsResults', 'Manager Update Assigned Model (Should Fail)', data, error);
+        }
+
+        // Business Logic Tables
+        async function testManagerBusinessTables() {
+            clearResults('businessTablesResults');
+            const tablesNoAccess = [
+                'user_model_assignments',
+                'user_financial_settings',
+                'model_specific_settings'
+            ];
+            const platformSettingsTable = 'platform_settings';
+
+            // Test tables where manager should have NO access
+            for (const table of tablesNoAccess) {
+                const { data: selectData, error: selectError } = await supabase.from(table).select('*').limit(1);
+                displayResults('businessTablesResults', 'Manager SELECT ' + table + ' (Should Fail)', selectData, selectError);
+
+                const { data: insertData, error: insertError } = await supabase.from(table).insert([{}]).select(); // Attempt dummy insert
+                displayResults('businessTablesResults', 'Manager INSERT ' + table + ' (Should Fail)', insertData, insertError);
+            }
+
+            // Test platform_settings (SELECT should work, UPDATE should fail)
+            const { data: psSelectData, error: psSelectError } = await supabase.from(platformSettingsTable).select('*').limit(1);
+            displayResults('businessTablesResults', 'Manager SELECT ' + platformSettingsTable + ' (Should Succeed)', psSelectData, psSelectError);
+
+            // Attempt to update a real column, this operation should be blocked by RLS for a manager.
+            const { data: psUpdateData, error: psUpdateError } = await supabase.from(platformSettingsTable).update({ default_platform_fee_percentage: 25.0 }).eq('id', 1).select();
+            displayResults('businessTablesResults', 'Manager UPDATE ' + platformSettingsTable + ' (Should Fail due to RLS)', psUpdateData, psUpdateError);
+        }
+    </script>
+</body>
+</html>

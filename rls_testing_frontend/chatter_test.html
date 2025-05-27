@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatter RLS Tests</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Chatter RLS Policy Tests</h1>
+        <div id="currentUserInfo">Loading user info...</div>
+        <a href="index.html">Back to Role Selection</a> | <button id="logoutButton" style="float:right;">Logout</button>
+        <hr>
+
+        <!-- User Profiles Tests -->
+        <div class="test-section">
+            <h2>User Profiles Table (as Chatter)</h2>
+            <button onclick="clearResults('userProfilesResults')">Clear Results</button>
+            <div>
+                <h4>SELECT Own Profile</h4>
+                <button onclick="testChatterViewOwnProfile()">View Own Profile</button>
+            </div>
+            <div>
+                <h4>SELECT Other User's Profile (Should Fail or Be Empty)</h4>
+                <input type="text" id="chatterViewOtherProfileId" placeholder="Another User ID (non-owner)">
+                <button onclick="testChatterViewOtherProfile()">View Other Profile</button>
+            </div>
+            <div>
+                <h4>UPDATE Own Profile (Non-Role Fields - Should Fail)</h4>
+                <input type="text" id="chatterUpdateProfileFullName" placeholder="New Full Name">
+                <input type="text" id="chatterUpdateProfileTelegram" placeholder="New Telegram Username">
+                <button onclick="testChatterUpdateOwnProfile()">Update Own Profile</button>
+                <p><small>Note: RLS `user_profiles_update` now restricts all updates to 'owner' only. This test should demonstrate failure.</small></p>
+            </div>
+            <div id="userProfilesResults" class="results-container"></div>
+        </div>
+
+        <!-- Models Table Tests -->
+        <div class="test-section">
+            <h2>Models Table (as Chatter)</h2>
+            <button onclick="clearResults('modelsResults')">Clear Results</button>
+            <div>
+                <h4>SELECT Assigned Models</h4>
+                <button onclick="testChatterViewAssignedModels()">View Assigned Models</button>
+                 <p><small>Note: This requires `is_assigned_to_model(model_id)` to be implemented and working correctly. The current `is_assigned_to_model` is conceptual.</small></p>
+            </div>
+            <div>
+                <h4>SELECT Unassigned Model (Should Fail or Be Empty)</h4>
+                <input type="text" id="chatterViewUnassignedModelId" placeholder="Unassigned Model ID">
+                <button onclick="testChatterViewUnassignedModel()">View Unassigned Model</button>
+            </div>
+            <div>
+                <h4>UPDATE Assigned Model (Should Fail - Chatters cannot update models)</h4>
+                <input type="text" id="chatterUpdateAssignedModelId" placeholder="Assigned Model ID">
+                <input type="text" id="chatterUpdateAssignedModelNickname" placeholder="New Nickname">
+                <button onclick="testChatterUpdateAssignedModel()">Update Assigned Model</button>
+            </div>
+            <div id="modelsResults" class="results-container"></div>
+        </div>
+
+        <!-- Business Logic Tables (Chatter - mostly no access) -->
+        <div class="test-section">
+            <h2>Business Logic Tables (as Chatter)</h2>
+            <button onclick="clearResults('businessTablesResults')">Clear Results</button>
+            <p>Chatters should generally NOT have access to these tables, except for `platform_settings` (SELECT only).</p>
+            <button onclick="testChatterBusinessTables()">Test Access to Business Tables</button>
+            <div id="businessTablesResults" class="results-container"></div>
+        </div>
+
+    </div>
+
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script defer src="shared.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof supabase === 'undefined' || !supabase) {
+            console.error("Supabase client is not available in chatter_test.html.");
+            const container = document.querySelector('.container');
+            if (container) {
+                const errorMsg = document.createElement('p');
+                errorMsg.textContent = 'Error: Supabase client not initialized. Please check the console.';
+                errorMsg.style.color = 'red';
+                container.prepend(errorMsg);
+            }
+            return;
+        }
+        // Initialize event listeners or other page-specific logic here if needed
+    });
+
+        // User Profiles Tests
+        async function testChatterViewOwnProfile() {
+            const userId = await getCurrentUserId();
+            if (!userId) {
+                displayResults('userProfilesResults', 'Chatter View Own Profile', null, { message: 'Not logged in or user ID not found.' });
+                return;
+            }
+            const { data, error } = await supabase.from('user_profiles').select('*').eq('id', userId).single();
+            displayResults('userProfilesResults', 'Chatter View Own Profile', data, error);
+        }
+
+        async function testChatterViewOtherProfile() {
+            const otherUserId = document.getElementById('chatterViewOtherProfileId').value;
+            if (!otherUserId) {
+                displayResults('userProfilesResults', 'Chatter View Other Profile', null, { message: 'Other User ID is required.' });
+                return;
+            }
+            const { data, error } = await supabase.from('user_profiles').select('*').eq('id', otherUserId).maybeSingle();
+            displayResults('userProfilesResults', 'Chatter View Other Profile (Should Fail/Be Empty)', data, error);
+        }
+
+        async function testChatterUpdateOwnProfile() {
+            const userId = await getCurrentUserId();
+            if (!userId) {
+                displayResults('userProfilesResults', 'Chatter Update Own Profile', null, { message: 'Not logged in or user ID not found.' });
+                return;
+            }
+            const fullName = document.getElementById('chatterUpdateProfileFullName').value;
+            const telegram = document.getElementById('chatterUpdateProfileTelegram').value;
+            let updateData = {};
+            if (fullName) updateData.full_name = fullName;
+            if (telegram) updateData.telegram_username = telegram;
+
+            if (Object.keys(updateData).length === 0) {
+                displayResults('userProfilesResults', 'Chatter Update Own Profile', null, { message: 'No update data provided.' });
+                return;
+            }
+            // This should fail due to RLS user_profiles_update policy
+            const { data, error } = await supabase.from('user_profiles').update(updateData).eq('id', userId).select();
+            displayResults('userProfilesResults', 'Chatter Update Own Profile (Should Fail)', data, error);
+        }
+
+        // Models Table Tests
+        async function testChatterViewAssignedModels() {
+            // This test relies on a properly implemented is_assigned_to_model(model_id) SQL function
+            // or similar logic in RLS that allows chatters to see models they are assigned to.
+            // RLS for models_select: ... OR is_assigned_to_model(id) OR ...
+            // Since is_assigned_to_model is conceptual, this might not return data unless the function exists and works.
+            const { data, error } = await supabase.from('models').select('*');
+            displayResults('modelsResults', 'Chatter View Assigned Models (Relies on is_assigned_to_model)', data, error);
+            if (!error && (!data || data.length === 0)) {
+                displayResults('modelsResults', 'Chatter View Assigned Models (Relies on is_assigned_to_model)', 'No models returned. This could be correct if no models are assigned, or if is_assigned_to_model() is not effective/implemented.', null);
+            }
+        }
+
+        async function testChatterViewUnassignedModel() {
+            const modelId = document.getElementById('chatterViewUnassignedModelId').value;
+            if (!modelId) {
+                displayResults('modelsResults', 'Chatter View Unassigned Model', null, { message: 'Unassigned Model ID is required.' });
+                return;
+            }
+            const { data, error } = await supabase.from('models').select('*').eq('id', modelId).maybeSingle();
+            displayResults('modelsResults', 'Chatter View Unassigned Model (Should Fail/Be Empty)', data, error);
+        }
+
+        async function testChatterUpdateAssignedModel() {
+            const modelId = document.getElementById('chatterUpdateAssignedModelId').value;
+            const nickname = document.getElementById('chatterUpdateAssignedModelNickname').value;
+            if (!modelId || !nickname) {
+                displayResults('modelsResults', 'Chatter Update Assigned Model', null, { message: 'Model ID and Nickname are required.' });
+                return;
+            }
+            // Chatters should not be able to update models
+            const { data, error } = await supabase.from('models').update({ nickname: nickname }).eq('id', modelId).select();
+            displayResults('modelsResults', 'Chatter Update Assigned Model (Should Fail)', data, error);
+        }
+
+        // Business Logic Tables
+        async function testChatterBusinessTables() {
+            clearResults('businessTablesResults');
+            const tablesNoAccess = [
+                'user_model_assignments',
+                'user_financial_settings',
+                'model_specific_settings'
+                // Chatters also cannot update platform_settings
+            ];
+            const platformSettingsTable = 'platform_settings';
+
+            for (const table of tablesNoAccess) {
+                const { data: selectData, error: selectError } = await supabase.from(table).select('*').limit(1);
+                displayResults('businessTablesResults', 'Chatter SELECT ' + table + ' (Should Fail)', selectData, selectError);
+
+                const { data: insertData, error: insertError } = await supabase.from(table).insert([{}]).select(); // Attempt dummy insert
+                displayResults('businessTablesResults', 'Chatter INSERT ' + table + ' (Should Fail)', insertData, insertError);
+            }
+
+            // Test platform_settings (SELECT should work, UPDATE should fail)
+            const { data: psSelectData, error: psSelectError } = await supabase.from(platformSettingsTable).select('*').limit(1);
+            displayResults('businessTablesResults', 'Chatter SELECT ' + platformSettingsTable + ' (Should Succeed)', psSelectData, psSelectError);
+
+            const { data: psUpdateData, error: psUpdateError } = await supabase.from(platformSettingsTable).update({ value: 'chatter_test_update' }).eq('key', 'some_existing_key').select();
+            displayResults('businessTablesResults', 'Chatter UPDATE ' + platformSettingsTable + ' (Should Fail)', psUpdateData, psUpdateError);
+        }
+    </script>
+</body>
+</html>

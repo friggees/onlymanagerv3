@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RLS Policy Testing</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>OnlyManager RLS Policy Testing</h1>
+    <p>Select a user role to simulate and test RLS policies.</p>
+    <div class="container">
+        <div class="role-selection">
+            <h2>Login as:</h2>
+            <input type="email" id="email" placeholder="Enter email" required>
+            <input type="password" id="password" placeholder="Enter password" required>
+            <button id="loginButton">Login & Select Role</button>
+            <p id="auth-status"></p>
+        </div>
+
+        <div id="role-links" style="display: none;">
+            <h2>Test Pages:</h2>
+            <ul>
+                <li><a href="owner_test.html">Owner Test Page</a></li>
+                <li><a href="manager_test.html">Manager Test Page</a></li>
+                <li><a href="model_test.html">Model Test Page</a></li>
+                <li><a href="chatter_test.html">Chatter Test Page</a></li>
+            </ul>
+             <button id="logoutButton">Logout</button>
+        </div>
+    </div>
+
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script defer src="shared.js"></script>
+    <script>
+        const loginButton = document.getElementById('loginButton');
+        const logoutButton = document.getElementById('logoutButton');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const authStatus = document.getElementById('auth-status');
+        const roleLinksDiv = document.getElementById('role-links');
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof supabase === 'undefined' || !supabase) {
+                authStatus.textContent = 'Error: Supabase client not initialized. Check console.';
+                console.error("Supabase client is not available in index.html. Ensure shared.js loads and initializes it correctly after the Supabase CDN script.");
+                return;
+            }
+
+            // Check initial auth state
+            checkAuthState();
+
+            loginButton.addEventListener('click', async () => {
+                const email = emailInput.value;
+                const password = passwordInput.value;
+
+                if (!email || !password) {
+                    authStatus.textContent = 'Email and password are required.';
+                    return;
+                }
+
+                authStatus.textContent = 'Logging in...';
+                console.log('Attempting login for:', email); // DEBUG
+
+                try {
+                    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+                    if (error) {
+                        console.error('Login error:', error); // DEBUG
+                        authStatus.textContent = 'Login failed: ' + error.message;
+                    } else {
+                        console.log('Login successful:', data); // DEBUG
+                        authStatus.textContent = 'Logged in as: ' + data.user.email;
+                        roleLinksDiv.style.display = 'block';
+                        loginButton.parentElement.style.display = 'none'; // Hide login form
+                        // Store session for other pages
+                        localStorage.setItem('supabase.auth.token', JSON.stringify(data.session));
+                        console.log('Session stored in localStorage.'); // DEBUG
+                    }
+                } catch (e) {
+                    console.error('Exception during login process:', e); // DEBUG
+                    authStatus.textContent = 'Login failed: An unexpected error occurred. Check console.';
+                }
+            });
+
+            logoutButton.addEventListener('click', async () => {
+                authStatus.textContent = 'Logging out...';
+                console.log('Attempting logout.'); //DEBUG
+                const { error } = await supabase.auth.signOut();
+                if (error) {
+                    console.error('Logout error:', error); // DEBUG
+                    authStatus.textContent = 'Logout failed: ' + error.message;
+                } else {
+                    console.log('Logout successful.'); // DEBUG
+                    authStatus.textContent = 'Logged out successfully.';
+                    roleLinksDiv.style.display = 'none';
+                    loginButton.parentElement.style.display = 'block'; // Show login form
+                    localStorage.removeItem('supabase.auth.token');
+                    console.log('Session removed from localStorage.'); //DEBUG
+                }
+            });
+
+            // Listen for auth changes to update UI across tabs/windows
+            supabase.auth.onAuthStateChange((event, session) => {
+                console.log('onAuthStateChange event:', event, session); // DEBUG
+                if (event === 'SIGNED_IN') {
+                    authStatus.textContent = 'Logged in as: ' + session.user.email;
+                    roleLinksDiv.style.display = 'block';
+                    loginButton.parentElement.style.display = 'none';
+                    localStorage.setItem('supabase.auth.token', JSON.stringify(session));
+                    console.log('onAuthStateChange: SIGNED_IN - Session stored.'); //DEBUG
+                } else if (event === 'SIGNED_OUT') {
+                    authStatus.textContent = 'Not logged in.';
+                    roleLinksDiv.style.display = 'none';
+                    loginButton.parentElement.style.display = 'block';
+                    localStorage.removeItem('supabase.auth.token');
+                    console.log('onAuthStateChange: SIGNED_OUT - Session removed.'); //DEBUG
+                }
+            });
+        });
+
+        async function checkAuthState() {
+            // Ensure supabase is defined before using it
+            if (typeof supabase === 'undefined' || !supabase) {
+                console.error("checkAuthState: Supabase client not available.");
+                authStatus.textContent = 'Error: Supabase client not ready.';
+                return;
+            }
+            const session = await supabase.auth.getSession();
+            if (session && session.data.session) {
+                authStatus.textContent = 'Logged in as: ' + session.data.session.user.email;
+                roleLinksDiv.style.display = 'block';
+                loginButton.parentElement.style.display = 'none'; // Hide login form
+            } else {
+                authStatus.textContent = 'Not logged in.';
+                roleLinksDiv.style.display = 'none';
+                loginButton.parentElement.style.display = 'block'; // Show login form
+            }
+        }
+    </script>
+</body>
+</html>
